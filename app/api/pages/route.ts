@@ -13,7 +13,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "N8N_WEBHOOK_URL não está definida." }, { status: 500 });
     }
 
-    // Chama o N8N para gerar o HTML
     const n8nResponse = await fetch(webhookUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -21,9 +20,21 @@ export async function POST(request: Request) {
     });
 
     if (!n8nResponse.ok) {
+      const errorBody = await n8nResponse.text();
+      console.error("Erro retornado pelo N8N:", errorBody);
       throw new Error("O agente de IA não conseguiu processar a solicitação.");
     }
-    const { htmlContent } = await n8nResponse.json();
+
+    const responseData = await n8nResponse.json();
+    
+    // **MUDANÇA FINAL AQUI**
+    // O agente agora retorna o HTML na chave 'output'
+    const htmlContent = responseData.output;
+
+    if (!htmlContent || typeof htmlContent !== 'string') {
+        console.error("A resposta do N8N não continha 'output' no formato esperado:", responseData);
+        throw new Error("A resposta da IA não veio no formato esperado.");
+    }
 
     // Salva a página gerada no banco de dados
     const newPage = await prisma.landingPage.create({
@@ -33,7 +44,6 @@ export async function POST(request: Request) {
       },
     });
 
-    // Retorna a página recém-criada para o frontend
     return NextResponse.json(newPage, { status: 201 });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "Erro interno.";
